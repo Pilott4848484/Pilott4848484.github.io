@@ -35,6 +35,16 @@ main{max-width:900px;margin:0 auto;padding:24px 16px}
 .miss{background:var(--panel);border-radius:8px;padding:10px 14px;margin-top:14px;max-height:260px;overflow:auto;font-size:14px}
 .miss div{padding:3px 0;color:var(--sub)}.miss span{color:var(--err)}
 .btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}.btns .go{margin:24px 0 0}
+.sec{animation:sec .4s ease both}@keyframes sec{from{opacity:0;transform:translateY(14px)}}
+.up{animation:up .3s ease both}@keyframes up{from{opacity:0;transform:translateY(10px) scale(.97)}}
+.ok{animation:ok .35s ease}@keyframes ok{40%{transform:scale(1.1);color:var(--main)}}
+.shake{animation:shk .3s}@keyframes shk{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+.flip{animation:flp .4s ease both}@keyframes flp{from{opacity:0;transform:rotateX(90deg)}}
+.go,.grp button{transition:color .2s,background .2s,transform .15s}.go:active,.grp button:active{transform:scale(.94)}
+.grp button.on{background:rgba(226,183,20,.12)}
+.stats div{animation:up .5s ease both}.stats div:nth-child(2){animation-delay:.1s}.stats div:nth-child(3){animation-delay:.2s}.stats div:nth-child(4){animation-delay:.3s}
+.miss div{animation:up .3s ease both}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body><main>
 <div class="logo">ru10k<small>russian typing trainer · top 10,000 words</small></div>
 
@@ -47,6 +57,8 @@ main{max-width:900px;margin:0 auto;padding:24px 16px}
 <div class="desc" id="tdesc"></div>
 <div class="grp" data-k="n"><b>words</b>
 <button data-v="10">10</button><button data-v="25">25</button><button data-v="50">50</button><button data-v="100">100</button></div>
+<div class="grp" data-k="conv"><b>latin → cyrillic</b><button data-v="on">on</button><button data-v="off">off</button></div>
+<div class="desc">type latin letters and they become russian: sh → ш, ch → ч, shch → щ, zh → ж, kh → х, ts → ц, ya → я, yu → ю, yo → ё, ' → ь, &quot; → ъ</div>
 <div class="desc" id="best"></div>
 <button class="go" id="start">start session</button>
 </section>
@@ -70,7 +82,7 @@ const W=[["и","and"],["в (во)","(+pr) in; (+a) into, to"],["не","not"],["�
 const $=id=>document.getElementById(id);
 const D={easy:{r:[0,1000],t:0,h:1,d:"top 1–1000 · first-letter hint · no time limit"},medium:{r:[1000,3500],t:0,h:0,d:"ranks 1001–3500 · no hints · no time limit"},hard:{r:[3500,6500],t:12,h:0,d:"ranks 3501–6500 · 12 s per word"},expert:{r:[6500,W.length],t:8,h:0,d:"ranks 6501–end · 8 s per word"}};
 const T={ru:"a Russian word appears: type it exactly (copy typing, live error colouring, auto-advances)",en:"an English prompt appears: type the Russian from memory, press Enter to submit",both:"classic flashcards: see Russian, press space to reveal English, then grade yourself"};
-let S={diff:"easy",type:"ru",n:"25"};
+let S={diff:"easy",type:"ru",n:"25",conv:"on"};
 try{Object.assign(S,JSON.parse(localStorage.getItem("ru10k2")||"{}"))}catch(e){}
 const norm=s=>s.toLowerCase().replace(/ё/g,"е");
 const target=i=>W[i][0].replace(/\s*\(.*$/,"").trim();
@@ -84,7 +96,22 @@ function menu(){
 }
 document.querySelectorAll(".grp").forEach(g=>g.onclick=e=>{const v=e.target.dataset.v;if(!v)return;S[g.dataset.k]=v;try{localStorage.setItem("ru10k2",JSON.stringify(S))}catch(x){}menu()});
 let Q=[],k=0,cur=null,t0=0,w0=0,tick=null,lock=false,stat,flip=false,missed=[],lastPool=null;
-function show(id){["menu","play","res"].forEach(s=>$(s).hidden=s!==id)}
+let cs=[];
+const LM={a:'а',b:'б',c:'ц',d:'д',e:'е',f:'ф',g:'г',h:'х',i:'и',j:'й',k:'к',l:'л',m:'м',n:'н',o:'о',p:'п',q:'к',r:'р',s:'с',t:'т',u:'у',v:'в',w:'в',x:'кс',y:'ы',z:'з',"'":'ь','"':'ъ'};
+const MG={'сh':'ш','цh':'ч','зh':'ж','кh':'х','тs':'ц','еh':'э','ыa':'я','ыu':'ю','ыo':'ё','ыe':'е','йa':'я','йu':'ю','йo':'ё','йe':'е'};
+function conv(pv,v){
+ if(v.length<=pv.length||!v.startsWith(pv))return[v,false];
+ let o=pv,mg=false;
+ for(const c0 of v.slice(pv.length)){const c=c0.toLowerCase();
+  if(!(c in LM)){o+=c0;mg=false;continue}
+  const m=MG[o.slice(-1)+c];
+  if(m){o=o.slice(0,-1)+m;mg=true}else{o+=LM[c];mg=false}
+  if(o.slice(-2)==='шч'){o=o.slice(0,-2)+'щ';mg=true}
+ }
+ return[o,mg]}
+function anim(id,c){const el=$(id);el.classList.remove('up','ok','shake','flip');void el.offsetWidth;el.classList.add(c)}
+function countUp(){document.querySelectorAll('#stats em').forEach(em=>{const m=/^(\d+(?:\.\d+)?)(.*)$/.exec(em.textContent);if(!m)return;const n=parseFloat(m[1]),d=(m[1].split('.')[1]||'').length,s=performance.now();(function f(){const p=Math.min(1,(performance.now()-s)/700);em.textContent=(n*(1-Math.pow(1-p,3))).toFixed(d)+m[2];if(p<1)requestAnimationFrame(f)})()})}
+function show(id){["menu","play","res"].forEach(s=>$(s).hidden=s!==id);const el=$(id);el.classList.remove('sec');void el.offsetWidth;el.classList.add('sec')}
 function start(pool){
  const [a,b]=D[S.diff].r;
  if(!pool){pool=[];for(let i=a;i<b;i++)pool.push(i);for(let i=pool.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[pool[i],pool[j]]=[pool[j],pool[i]]}pool=pool.slice(0,+S.n)}
@@ -100,13 +127,13 @@ function clock(){
 function next(){
  if(k>=Q.length)return finish();
  cur=Q[k];lock=false;flip=false;w0=performance.now();$("cnt").textContent=(k+1)+"/"+Q.length;
- $("bar").firstChild.style.width="100%";const inp=$("inp");inp.value="";inp.dataset.n=0;
+ $("bar").firstChild.style.width="100%";const inp=$("inp");inp.value="";inp.dataset.n=0;inp.dataset.pv="";cs=[];
  $("prompt").textContent=S.type==="ru"?"":S.type==="en"?W[cur][1]:W[cur][0];$("sub").textContent="";
- $("sub").style.color="";paint();inp.disabled=S.type==="both";if(S.type!=="both")inp.focus();
+ $("sub").style.color="";paint();anim('prompt','up');anim('disp','up');inp.disabled=S.type==="both";if(S.type!=="both")inp.focus();
 }
 function paint(){
  const d=$("disp");
- if(S.type==="both"){d.textContent="";if(flip)$("sub").textContent=W[cur][1];else $("sub").textContent="(space to reveal)";return}
+ if(S.type==="both"){d.textContent="";if(flip){$("sub").textContent=W[cur][1];anim('sub','up');anim('prompt','flip')}else $("sub").textContent="(space to reveal)";return}
  const t=target(cur),v=$("inp").value;let h="";
  if(S.type==="ru"){
   for(let i=0;i<t.length;i++){const c=i<v.length?(norm(v[i])===norm(t[i])?"c":"w"):"";h+=`<span class="${c}${i===v.length?" cur":""}">${esc(t[i]===" "?"\u00a0":t[i])}</span>`}
@@ -121,14 +148,16 @@ function paint(){
 }
 $("inp").addEventListener("input",e=>{
  if(lock||S.type==="both")return;
- const v=e.target.value,t=target(cur),p=+e.target.dataset.n;
- if(S.type==="ru"&&v.length>p){const i=v.length-1;if(i<t.length&&norm(v[i])===norm(t[i]))stat.hit++;else stat.miss++}
+ const t=target(cur),p=+e.target.dataset.n;let v=e.target.value,mg=false;
+ if(S.conv!=="off"){const r=conv(e.target.dataset.pv||"",v);v=r[0];mg=r[1];e.target.value=v}
+ e.target.dataset.pv=v;
+ if(S.type==="ru"&&v.length>0&&(v.length>p||mg)){const i=v.length-1,h=i<t.length&&norm(v[i])===norm(t[i]);if(mg&&cs[i]!==undefined){cs[i]?stat.hit--:stat.miss--}cs[i]=h;if(h)stat.hit++;else{stat.miss++;anim('disp','shake')}}
  e.target.dataset.n=v.length;paint();
  if(S.type==="ru"&&norm(v)===norm(t))pass();
 });
-function pass(){lock=true;stat.ok++;stat.chars+=target(cur).length;if(S.type==="en"){stat.hit++}k++;setTimeout(next,S.type==="ru"?60:250)}
+function pass(){lock=true;anim('disp','ok');stat.ok++;stat.chars+=target(cur).length;if(S.type==="en"){stat.hit++}k++;setTimeout(next,S.type==="ru"?60:250)}
 function fail(){
- if(lock)return;lock=true;missed.push(cur);if(S.type==="en")stat.miss++;
+ if(lock)return;lock=true;missed.push(cur);anim('disp','shake');if(S.type==="en")stat.miss++;
  $("disp").innerHTML=`<span class="w">${esc(target(cur))}</span>`;$("sub").textContent=W[cur][1];k++;setTimeout(next,1200);
 }
 function grade(ok){if(!flip||lock)return;lock=true;if(ok){stat.ok++;stat.hit++}else{stat.miss++;missed.push(cur)}k++;next()}
@@ -155,7 +184,7 @@ function finish(){
  $("rbest").textContent=rb;
  $("miss").hidden=!missed.length;$("pm").hidden=!missed.length;
  $("miss").innerHTML=missed.map(i=>`<div><span>${esc(W[i][0])}</span> — ${esc(W[i][1])}</div>`).join("");
- show("res");
+ show("res");countUp();
 }
 $("start").onclick=()=>start(null);$("again").onclick=()=>start(null);
 $("pm").onclick=()=>start(missed.slice());$("back").onclick=()=>{show("menu");menu()};
